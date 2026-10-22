@@ -1,0 +1,22 @@
+# Rumble Roses XX (rrxx) settings.
+# tools/run.ps1 copies this file next to rrxx.exe (build/dev-release-opt/) the FIRST time only;
+# after that, edit the copy next to the exe (it is read at startup; no rebuild needed).
+# Any ReXGlue cvar can be set here, and on the command line as --name=value
+# (e.g. tools\run.ps1 -NoBuild -GameArgs '--fullscreen=false').
+# Comentarios en ingles; la lista de opciones esta explicada tambien en el README (seccion en espanol).
+
+# Direct3D 12 render-target path:
+#   "rov" = pixel-shader interlock (exact, slow; the SDK picks it by default on Intel GPUs)
+#   "rtv" = host render targets (fast; tested on Intel UHD)
+#   ""    = SDK automatic choice
+render_target_path_d3d12 = "rtv"
+
+# Resolution scale (1 = native 720p, 2 = 1440p ...). Needs a restart.
+resolution_scale = 1
+
+# Print the FPS to the log every N seconds (0 = off).
+gpu_log_fps = 5
+
+# Leave an unused 64 KB margin at the end of each upload-pool page (mitigation of the GPU
+# page-fault / TDR, see docs/CRASHES.md #7). Set to false only to compare behaviour.
+d3d12_upload_page_guard_margin = true

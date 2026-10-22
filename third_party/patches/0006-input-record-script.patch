@@ -1,0 +1,278 @@
+diff --git a/include/rex/input/input_system.h b/include/rex/input/input_system.h
+index 1cb3faa..e9665ea 100644
+--- a/include/rex/input/input_system.h
++++ b/include/rex/input/input_system.h
+@@ -10,7 +10,10 @@
+  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+  */
+ 
++#include <chrono>
++#include <cstdio>
+ #include <memory>
++#include <mutex>
+ #include <vector>
+ 
+ #include <rex/input/device_assignment.h>
+@@ -48,6 +51,30 @@ class InputSystem : public system::IInputSystem {
+   X_RESULT GetKeystroke(uint32_t user_index, uint32_t flags, X_INPUT_KEYSTROKE* out_keystroke);
+ 
+  private:
++  // Mando virtual (--input_script) y grabacion (--input_record), solo slot 0.
++  struct ScriptEvent {
++    uint32_t t_ms;
++    uint16_t mask;  // boton (0 si es eje/gatillo)
++    int axis;       // -1 = boton; 0=LT 1=RT 2=LX 3=LY 4=RX 5=RY
++    int value;      // botones: 1=down 0=up; ejes: valor
++  };
++  uint32_t ScriptElapsedMs();
++  void LoadScriptOnce();
++  bool ScriptState(X_INPUT_STATE* out_state);
++  void RecordState(const X_INPUT_STATE& state);
++
++  std::mutex script_mutex_;
++  bool script_loaded_ = false;
++  bool script_active_ = false;
++  std::vector<ScriptEvent> script_;
++  std::chrono::steady_clock::time_point script_t0_{};
++  bool script_t0_set_ = false;
++  X_INPUT_STATE script_last_{};
++  uint32_t script_packet_ = 0;
++  std::FILE* record_file_ = nullptr;
++  bool record_opened_ = false;
++  X_INPUT_STATE record_last_{};
++
+   /// Re-enumerates every driver and notifies the assignment when the set
+   /// changed.
+   void RefreshDevices();
+diff --git a/src/input/input_system.cpp b/src/input/input_system.cpp
+index 813bb1c..8d809a5 100644
+--- a/src/input/input_system.cpp
++++ b/src/input/input_system.cpp
+@@ -11,6 +11,11 @@
+ 
+ #include <algorithm>
+ #include <cmath>
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++#include <fstream>
++#include <sstream>
+ 
+ #include <rex/dbg.h>
+ #include <rex/input/device_assignment.h>
+@@ -28,10 +33,26 @@ REXCVAR_DEFINE_STRING(input_backend, "sdl", "Input", "Input backend: sdl, xinput
+     .allowed({"sdl", "xinput"});
+ 
+ REXCVAR_DEFINE_BOOL(guide_button, false, "Input", "Enable guide button pass-through");
++REXCVAR_DEFINE_STRING(input_record, "", "Input",
++                      "Graba el mando real (slot 0) a un archivo: tiempo_ms BOTON down/up");
++REXCVAR_DEFINE_STRING(input_script, "", "Input",
++                      "Reproduce un archivo como mando virtual en el slot 0 (ignora el mando real)");
+ namespace rex::input {
+ 
+ namespace {
+ 
++struct ButtonName {
++  const char* name;
++  uint16_t mask;
++};
++constexpr ButtonName kButtons[] = {
++    {"DPAD_UP", 0x0001}, {"DPAD_DOWN", 0x0002}, {"DPAD_LEFT", 0x0004}, {"DPAD_RIGHT", 0x0008},
++    {"START", 0x0010},   {"BACK", 0x0020},      {"LS", 0x0040},        {"RS", 0x0080},
++    {"LB", 0x0100},      {"RB", 0x0200},        {"A", 0x1000},         {"B", 0x2000},
++    {"X", 0x4000},       {"Y", 0x8000},
++};
++constexpr const char* kAxes[] = {"LT", "RT", "LX", "LY", "RX", "RY"};
++
+ // Synthetic devices are parked past every physical ordinal so they cannot push
+ // a real pad off guest user 0. SlotAssignment routes them by their synthetic
+ // flag and never reads this value.
+@@ -43,6 +64,150 @@ InputSystem::InputSystem(rex::ui::Window* window) : window_(window) {}
+ 
+ InputSystem::~InputSystem() = default;
+ 
++// El reloj arranca en la primera lectura del mando (slot 0), igual al grabar y al reproducir.
++uint32_t InputSystem::ScriptElapsedMs() {
++  auto now = std::chrono::steady_clock::now();
++  if (!script_t0_set_) {
++    script_t0_ = now;
++    script_t0_set_ = true;
++  }
++  return static_cast<uint32_t>(
++      std::chrono::duration_cast<std::chrono::milliseconds>(now - script_t0_).count());
++}
++
++void InputSystem::LoadScriptOnce() {
++  if (script_loaded_) {
++    return;
++  }
++  script_loaded_ = true;
++  std::string path = REXCVAR_GET(input_script);
++  std::ifstream in(path);
++  if (!in) {
++    REXLOG_ERROR("input_script: no se pudo abrir '{}'", path);
++    return;
++  }
++  std::string line;
++  int lineno = 0;
++  while (std::getline(in, line)) {
++    lineno++;
++    line.resize(line.find('#') == std::string::npos ? line.size() : line.find('#'));
++    std::istringstream ss(line);
++    uint32_t t;
++    std::string name, arg;
++    if (!(ss >> t >> name >> arg)) {
++      continue;
++    }
++    ScriptEvent ev{t, 0, -1, 0};
++    bool ok = false;
++    for (const auto& b : kButtons) {
++      if (name == b.name && (arg == "down" || arg == "up")) {
++        ev.mask = b.mask;
++        ev.value = arg == "down" ? 1 : 0;
++        ok = true;
++      }
++    }
++    for (int i = 0; i < 6; i++) {
++      if (name == kAxes[i]) {
++        ev.axis = i;
++        ev.value = std::atoi(arg.c_str());
++        ok = true;
++      }
++    }
++    if (!ok) {
++      REXLOG_WARN("input_script: linea {} ignorada: '{} {}'", lineno, name, arg);
++      continue;
++    }
++    script_.push_back(ev);
++  }
++  std::stable_sort(script_.begin(), script_.end(),
++                   [](const ScriptEvent& a, const ScriptEvent& b) { return a.t_ms < b.t_ms; });
++  script_active_ = true;
++  REXLOG_INFO("input_script: {} eventos cargados de '{}'", script_.size(), path);
++}
++
++bool InputSystem::ScriptState(X_INPUT_STATE* out_state) {
++  std::lock_guard<std::mutex> lock(script_mutex_);
++  LoadScriptOnce();
++  if (!script_active_) {
++    return false;
++  }
++  uint32_t now = ScriptElapsedMs();
++  uint16_t buttons = 0;
++  int axes[6] = {};
++  for (const auto& ev : script_) {
++    if (ev.t_ms > now) {
++      break;
++    }
++    if (ev.axis < 0) {
++      buttons = ev.value ? (buttons | ev.mask) : (buttons & ~ev.mask);
++    } else {
++      axes[ev.axis] = ev.value;
++    }
++  }
++  X_INPUT_STATE s = {};
++  s.gamepad.buttons = buttons;
++  s.gamepad.left_trigger = static_cast<uint8_t>(axes[0]);
++  s.gamepad.right_trigger = static_cast<uint8_t>(axes[1]);
++  s.gamepad.thumb_lx = static_cast<int16_t>(axes[2]);
++  s.gamepad.thumb_ly = static_cast<int16_t>(axes[3]);
++  s.gamepad.thumb_rx = static_cast<int16_t>(axes[4]);
++  s.gamepad.thumb_ry = static_cast<int16_t>(axes[5]);
++  // packet_number sube solo cuando cambia el estado, como en un mando real.
++  if (std::memcmp(&script_last_.gamepad, &s.gamepad, sizeof(s.gamepad)) != 0) {
++    script_packet_++;
++    script_last_ = s;
++  }
++  s.packet_number = script_packet_;
++  *out_state = s;
++  return true;
++}
++
++void InputSystem::RecordState(const X_INPUT_STATE& state) {
++  std::lock_guard<std::mutex> lock(script_mutex_);
++  if (!record_opened_) {
++    record_opened_ = true;
++    std::string path = REXCVAR_GET(input_record);
++    record_file_ = std::fopen(path.c_str(), "w");
++    if (!record_file_) {
++      REXLOG_ERROR("input_record: no se pudo crear '{}'", path);
++    } else {
++      std::fprintf(record_file_, "# tiempo_ms BOTON down|up  /  LT RT LX LY RX RY valor\n");
++      REXLOG_INFO("input_record: grabando en '{}'", path);
++    }
++  }
++  if (!record_file_) {
++    return;
++  }
++  uint32_t t = ScriptElapsedMs();
++  uint16_t nb = state.gamepad.buttons, ob = record_last_.gamepad.buttons;
++  for (const auto& b : kButtons) {
++    if ((nb & b.mask) != (ob & b.mask)) {
++      std::fprintf(record_file_, "%u %s %s\n", t, b.name, (nb & b.mask) ? "down" : "up");
++    }
++  }
++  const int nv[6] = {state.gamepad.left_trigger, state.gamepad.right_trigger,
++                     state.gamepad.thumb_lx,     state.gamepad.thumb_ly,
++                     state.gamepad.thumb_rx,     state.gamepad.thumb_ry};
++  int ov[6] = {record_last_.gamepad.left_trigger, record_last_.gamepad.right_trigger,
++               record_last_.gamepad.thumb_lx,     record_last_.gamepad.thumb_ly,
++               record_last_.gamepad.thumb_rx,     record_last_.gamepad.thumb_ry};
++  for (int i = 0; i < 6; i++) {
++    // Los sticks tienen ruido: solo se registra un cambio de ~3% del rango o mas.
++    if (std::abs(nv[i] - ov[i]) > (i < 2 ? 0 : 1000)) {
++      std::fprintf(record_file_, "%u %s %d\n", t, kAxes[i], nv[i]);
++      ov[i] = nv[i];
++    }
++  }
++  std::fflush(record_file_);
++  record_last_.gamepad.buttons = nb;
++  record_last_.gamepad.left_trigger = static_cast<uint8_t>(ov[0]);
++  record_last_.gamepad.right_trigger = static_cast<uint8_t>(ov[1]);
++  record_last_.gamepad.thumb_lx = static_cast<int16_t>(ov[2]);
++  record_last_.gamepad.thumb_ly = static_cast<int16_t>(ov[3]);
++  record_last_.gamepad.thumb_rx = static_cast<int16_t>(ov[4]);
++  record_last_.gamepad.thumb_ry = static_cast<int16_t>(ov[5]);
++}
++
+ X_STATUS InputSystem::Setup() {
+   return X_STATUS_SUCCESS;
+ }
+@@ -218,6 +383,16 @@ X_RESULT InputSystem::GetState(uint32_t user_index, X_INPUT_STATE* out_state) {
+     return X_ERROR_DEVICE_NOT_CONNECTED;
+   }
+ 
++  if (user_index == 0 && !REXCVAR_GET(input_script).empty()) {
++    X_INPUT_STATE scripted = {};
++    if (ScriptState(&scripted)) {
++      if (out_state) {
++        *out_state = scripted;
++      }
++      return X_ERROR_SUCCESS;
++    }
++  }
++
+   RefreshDevices();
+   std::vector<DeviceId> ids;
+   assignment_->DevicesForUser(user_index, ids);
+@@ -245,6 +420,9 @@ X_RESULT InputSystem::GetState(uint32_t user_index, X_INPUT_STATE* out_state) {
+   if (!any) {
+     return X_ERROR_DEVICE_NOT_CONNECTED;
+   }
++  if (user_index == 0 && !REXCVAR_GET(input_record).empty()) {
++    RecordState(merged);
++  }
+   if (out_state) {
+     *out_state = merged;
+   }
+@@ -299,6 +477,10 @@ X_RESULT InputSystem::GetKeystroke(uint32_t user_index, uint32_t flags,
+     return X_ERROR_DEVICE_NOT_CONNECTED;
+   }
+ 
++  if (user_index == 0 && !REXCVAR_GET(input_script).empty()) {
++    return X_ERROR_EMPTY;  // el mando virtual solo expone GetState
++  }
++
+   RefreshDevices();
+   std::vector<DeviceId> ids;
+   assignment_->DevicesForUser(user_index, ids);

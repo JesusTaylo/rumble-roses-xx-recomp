@@ -1,0 +1,196 @@
+diff --git a/include/rex/graphics/d3d12/command_processor.h b/include/rex/graphics/d3d12/command_processor.h
+index 96d362b..34282be 100644
+--- a/include/rex/graphics/d3d12/command_processor.h
++++ b/include/rex/graphics/d3d12/command_processor.h
+@@ -331,6 +331,18 @@ class D3D12CommandProcessor : public CommandProcessor {
+   }
+   void LogDeviceRemovalDiagnostics(ID3D12Device* device, HRESULT reason);
+ 
++  // Diagnostico de TDR (cvar gpu_track_draws): draws de las submissions aun no completadas.
++  struct TrackedDraw {
++    uint64_t submission;
++    uint64_t vs_hash;
++    uint64_t ps_hash;
++    uint32_t prim_type;
++    uint32_t vertex_count;
++    bool tessellated;
++    bool indexed;
++  };
++  std::deque<TrackedDraw> tracked_draws_;
++
+   void UpdateDebugMarkersEnabled();
+   void PushDebugMarker(const char* format, ...);
+   void PopDebugMarker();
+diff --git a/src/graphics/d3d12/command_processor.cpp b/src/graphics/d3d12/command_processor.cpp
+index 19874a5..772a480 100644
+--- a/src/graphics/d3d12/command_processor.cpp
++++ b/src/graphics/d3d12/command_processor.cpp
+@@ -10,6 +10,9 @@
+  */
+ 
+ #include <algorithm>
++#include <set>
++#include <tuple>
++#include <chrono>
+ #include <cstdarg>
+ #include <cstring>
+ #include <sstream>
+@@ -32,6 +35,12 @@
+ #include <rex/ui/d3d12/d3d12_presenter.h>
+ #include <rex/ui/d3d12/d3d12_util.h>
+ 
++REXCVAR_DEFINE_BOOL(gpu_track_draws, false, "GPU",
++                    "Record recent draws and print them if the D3D12 device is removed (TDR debugging)");
++
++REXCVAR_DEFINE_INT32(gpu_log_fps, 0, "GPU",
++                     "Log the swap rate (FPS) every N seconds (0 = disabled)");
++
+ REXCVAR_DEFINE_BOOL(d3d12_bindless, true, "GPU/D3D12", "Use bindless resources where available")
+     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+ 
+@@ -1897,6 +1906,19 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbu
+   vertex_buffers_in_sync_[0] = 0;
+   vertex_buffers_in_sync_[1] = 0;
+ 
++  if (int32_t fps_interval = REXCVAR_GET(gpu_log_fps); fps_interval > 0) {
++    static auto fps_start = std::chrono::steady_clock::now();
++    static uint32_t fps_swaps = 0;
++    ++fps_swaps;
++    auto now = std::chrono::steady_clock::now();
++    double elapsed = std::chrono::duration<double>(now - fps_start).count();
++    if (elapsed >= fps_interval) {
++      REXGPU_INFO("FPS: {:.1f} ({} swaps en {:.1f} s)", fps_swaps / elapsed, fps_swaps, elapsed);
++      fps_start = now;
++      fps_swaps = 0;
++    }
++  }
++
+   if (!graphics_system_)
+     return;
+   ui::Presenter* presenter = graphics_system_->presenter();
+@@ -2495,15 +2517,30 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
+           if (REXCVAR_GET(gpu_allow_invalid_fetch_constants)) {
+             break;
+           }
+-          REXGPU_WARN(
+-              "Vertex fetch constant {} ({:08X} {:08X}) has \"invalid\" type! "
+-              "This is incorrect behavior, but you can try bypassing this by "
+-              "launching Xenia with --gpu_allow_invalid_fetch_constants=true.",
+-              vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
++          {
++            static bool warned_invalid_vfetch = false;
++            if (!warned_invalid_vfetch) {
++              warned_invalid_vfetch = true;
++              REXGPU_WARN(
++                  "Vertex fetch constant {} ({:08X} {:08X}) has \"invalid\" type! "
++                  "This is incorrect behavior, but you can try bypassing this by "
++                  "launching Xenia with --gpu_allow_invalid_fetch_constants=true. "
++                  "(solo se avisa una vez)",
++                  vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
++            }
++          }
+           return false;
+         default:
+-          REXGPU_WARN("Vertex fetch constant {} ({:08X} {:08X}) is completely invalid!",
+-                      vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
++          {
++            static bool warned_bad_vfetch = false;
++            if (!warned_bad_vfetch) {
++              warned_bad_vfetch = true;
++              REXGPU_WARN(
++                  "Vertex fetch constant {} ({:08X} {:08X}) is completely invalid! "
++                  "(solo se avisa una vez)",
++                  vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
++            }
++          }
+           return false;
+       }
+       VertexBufferState& state = vertex_buffer_states_[vfetch_index];
+@@ -2617,6 +2654,20 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
+   SetPrimitiveTopology(primitive_topology);
+   // Must not call anything that may change the primitive topology from now on!
+ 
++  if (REXCVAR_GET(gpu_track_draws)) {
++    while (tracked_draws_.size() >= 1024) {
++      tracked_draws_.pop_front();
++    }
++    tracked_draws_.push_back(
++        {submission_current_, vertex_shader->ucode_data_hash(),
++         pixel_shader ? pixel_shader->ucode_data_hash() : 0,
++         uint32_t(primitive_processing_result.guest_primitive_type),
++         primitive_processing_result.host_draw_vertex_count,
++         primitive_processing_result.IsTessellated(),
++         primitive_processing_result.index_buffer_type !=
++             PrimitiveProcessor::ProcessedIndexBufferType::kNone});
++  }
++
+   // Draw.
+   if (primitive_processing_result.index_buffer_type ==
+       PrimitiveProcessor::ProcessedIndexBufferType::kNone) {
+@@ -3216,6 +3267,23 @@ void D3D12CommandProcessor::LogDeviceRemovalDiagnostics(ID3D12Device* device, HR
+   REXGPU_ERROR("D3D12 device removed: HRESULT 0x{:08X} - {}", static_cast<unsigned>(reason),
+                reason_str);
+ 
++  if (!tracked_draws_.empty()) {
++    REXGPU_ERROR("Ultimos draws (de mas reciente a mas antiguo, distintos VS/PS; submission actual={}):",
++                 submission_current_);
++    std::set<std::tuple<uint64_t, uint64_t, uint32_t, bool>> seen;
++    uint32_t printed = 0;
++    for (auto it = tracked_draws_.rbegin(); it != tracked_draws_.rend() && printed < 30; ++it) {
++      if (!seen.insert({it->vs_hash, it->ps_hash, it->prim_type, it->tessellated}).second) continue;
++      ++printed;
++      REXGPU_ERROR("  sub={} vs={:016X} ps={:016X} prim={} verts={} tess={} idx={}", it->submission,
++                   it->vs_hash, it->ps_hash, it->prim_type, it->vertex_count, it->tessellated,
++                   it->indexed);
++    }
++  }
++
++  // El proceso termina enseguida tras perder el dispositivo; sin esto el log pierde estas lineas.
++  rex::FlushLogging();
++
+   Microsoft::WRL::ComPtr<ID3D12DeviceRemovedExtendedData> dred;
+   if (FAILED(device->QueryInterface(IID_PPV_ARGS(&dred)))) {
+     return;
+diff --git a/src/graphics/pipeline/texture/cache.cpp b/src/graphics/pipeline/texture/cache.cpp
+index 76f5600..3700cce 100644
+--- a/src/graphics/pipeline/texture/cache.cpp
++++ b/src/graphics/pipeline/texture/cache.cpp
+@@ -10,6 +10,7 @@
+  */
+ 
+ #include <algorithm>
++#include <atomic>
+ #include <cstdint>
+ #include <utility>
+ 
+@@ -907,6 +908,10 @@ void TextureCache::BindingInfoFromFetchConstant(const xenos::xe_gpu_texture_fetc
+     *swizzled_signs_out = uint8_t(xenos::TextureSign::kUnsigned) * uint8_t(0b01010101);
+   }
+ 
++  // Cada tipo invalido se avisa una sola vez (el juego lo repite en casi cada frame).
++  static std::atomic<uint32_t> warned_fetch_types{0};
++  const uint32_t fetch_type_bit = uint32_t(1) << (uint32_t(fetch.type) & 31);
++  const bool warn_fetch_type = !(warned_fetch_types.fetch_or(fetch_type_bit) & fetch_type_bit);
+   switch (fetch.type) {
+     case xenos::FetchConstantType::kTexture:
+       break;
+@@ -914,6 +919,9 @@ void TextureCache::BindingInfoFromFetchConstant(const xenos::xe_gpu_texture_fetc
+       if (REXCVAR_GET(gpu_allow_invalid_fetch_constants)) {
+         break;
+       }
++      if (!warn_fetch_type) {
++        return;
++      }
+       REXGPU_WARN(
+           "Texture fetch constant ({:08X} {:08X} {:08X} {:08X} {:08X} {:08X}) "
+           "has \"invalid\" type! This is incorrect behavior, but you can try "
+@@ -922,6 +930,9 @@ void TextureCache::BindingInfoFromFetchConstant(const xenos::xe_gpu_texture_fetc
+           fetch.dword_0, fetch.dword_1, fetch.dword_2, fetch.dword_3, fetch.dword_4, fetch.dword_5);
+       return;
+     default:
++      if (!warn_fetch_type) {
++        return;
++      }
+       REXGPU_WARN(
+           "Texture fetch constant ({:08X} {:08X} {:08X} {:08X} {:08X} {:08X}) "
+           "is completely invalid!",

@@ -1,0 +1,197 @@
+﻿# Overrides manuales del codegen para Rumble Roses XX.
+# Cada entrada documenta como se descubrio, para que los patrones se puedan repetir.
+
+# CRT setjmp/longjmp (identificados por patron en .text, etapa 1).
+# setjmp: guarda f14-f31 (stfd 0..136(r3)) y r13-r31 (std 152..296(r3)), r1 en 144, CR/LR en 304/308.
+#   Empieza con el stub de hook (lwz r0,-24708(r4) -> 0x82A99F7C; si no es nulo salta por ctr).
+# longjmp: mismo layout inverso (lfd/ld desde r7 = jmp_buf), r3 = valor de retorno.
+setjmp_address = 0x824726C0
+longjmp_address = 0x82472470
+
+# Destinos de saltos 'b' (tail calls) que el analisis no detecto como inicio de funcion
+# (UnresolvedCall: "target not in any function"), etapa 0.
+[functions]
+0x823649B0 = {}   # desde 0x8219575C
+0x82364958 = {}   # desde 0x82195774
+0x82344F90 = {}   # desde 0x82347424
+
+# Crash #1 (run 2): 'Call to invalid or unregistered function at 0x821D2918'.
+# Thunks de llamada virtual de 4 instrucciones (lwz r11,0(r3); lwz r10,N(r11); mtctr r10; bctr) que solo
+# se alcanzan por puntero (vtables) y el analisis no registro. Se declaran todos los que cumplen el patron.
+0x82093A3C = {}
+0x820D2488 = {}
+0x820D24B0 = {}
+0x820DF50C = {}
+0x8212BE4C = {}
+0x821302E0 = {}
+0x8213B7DC = {}
+0x821502BC = {}
+0x82154354 = {}
+0x821577F0 = {}
+0x82196BDC = {}
+0x821C56FC = {}
+0x821D184C = {}
+0x821D188C = {}
+0x821D28F8 = {}
+0x821D2918 = {}
+0x821D2928 = {}
+0x821D2948 = {}
+0x821F9C28 = {}
+0x821F9C84 = {}
+0x821FA13C = {}
+0x821FC9E4 = {}
+0x822609EC = {}
+0x822812C4 = {}
+0x822812DC = {}
+0x822AA404 = {}
+0x822AA424 = {}
+0x82345010 = {}
+0x823450D8 = {}
+0x82346848 = {}
+0x82346868 = {}
+0x8234C5C0 = {}
+0x8234C5E0 = {}
+0x82364980 = {}
+0x82365B44 = {}
+0x82365C04 = {}
+0x823671D4 = {}
+0x8236723C = {}
+0x8236725C = {}
+0x8236727C = {}
+0x8236729C = {}
+0x823672BC = {}
+0x82367338 = {}
+0x8236BBA0 = {}
+0x823710C4 = {}
+0x823710E0 = {}
+0x82375B74 = {}
+0x82375B94 = {}
+0x82375BB4 = {}
+0x82375BD4 = {}
+0x82375BF4 = {}
+0x82375C14 = {}
+0x82375C34 = {}
+0x82375C54 = {}
+0x82375C7C = {}
+0x82389C20 = {}
+
+# Crash #3: callback del reproductor XMV, alcanzado solo por puntero (sigue a un bucle infinito)
+0x821956A8 = {}
+
+# Crash #3/#4: funciones sin llamada directa, detectadas con tools/gaps.py (huecos tras el fin de una funcion)
+0x8207F3C0 = {}
+0x82096604 = {}
+0x820D2470 = {}
+0x820D2498 = {}
+0x820D24C0 = {}
+0x820D5904 = {}
+0x8212CAE8 = {}
+0x821302F0 = {}
+0x82137030 = {}
+0x82153D48 = {}
+0x82156B54 = {}
+0x82162C70 = {}
+0x8216F0A4 = {}
+0x8216F1F4 = {}
+0x8216F4DC = {}
+0x821779D4 = {}
+0x8217AAA8 = {}
+0x8218EB50 = {}
+0x821956C0 = {}
+0x82196BEC = {}
+0x82196E7C = {}
+0x821AD060 = {}
+0x821B2F50 = {}
+0x821BA4AC = {}
+0x821C4398 = {}
+0x821CB4D0 = {}
+0x821D2EE8 = {}
+0x821D2F18 = {}
+0x821D2F48 = {}
+0x821D2F74 = {}
+0x821D3960 = {}
+0x821DB584 = {}
+0x821DB60C = {}
+0x821DB64C = {}
+0x821F9C0C = {}
+0x821F9C38 = {}
+0x821F9C6C = {}
+0x821F9C94 = {}
+0x82214E4C = {}
+0x822156E8 = {}
+0x822156F0 = {}  # crash #6: sin llamada directa, tras el stub 0x822156E8
+0x822473B4 = {}
+0x82247420 = {}
+0x822474AC = {}
+0x822475BC = {}
+0x82247654 = {}
+0x8225E950 = {}
+0x8225E978 = {}
+0x8225E9A0 = {}
+0x822858E4 = {}
+0x8229BA50 = {}
+0x822A0DC0 = {}
+0x822AA33C = {}
+0x822AB0FC = {}
+0x822B0950 = {}
+0x822B6630 = {}
+0x822B66C8 = {}
+0x822BF64C = {}
+0x822C2BD8 = {}
+0x822C2C00 = {}
+0x822C2C2C = {}
+0x822CB510 = {}
+0x822CBEF0 = {}
+0x822CD900 = {}
+0x822FB284 = {}
+0x822FE600 = {}
+0x823002B4 = {}
+0x8230CDE4 = {}
+0x8232176C = {}
+0x8232C890 = {}
+0x82345020 = {}
+0x823450E8 = {}
+0x82347C48 = {}
+0x82347C88 = {}
+0x82347CA0 = {}
+0x82347CB0 = {}
+0x82349808 = {}
+0x82360828 = {}
+0x82365324 = {}
+0x8236591C = {}
+0x82365B54 = {}
+0x82365C14 = {}
+0x823671E4 = {}
+0x8236724C = {}
+0x8236726C = {}
+0x8236728C = {}
+0x823672AC = {}
+0x823672CC = {}
+0x82367348 = {}
+0x8236BBB0 = {}
+0x823710D4 = {}
+0x82375B84 = {}
+0x82375BA4 = {}
+0x82375BC4 = {}
+0x82375BE4 = {}
+0x82375C04 = {}
+0x82375C24 = {}
+0x82375C44 = {}
+0x82375C64 = {}
+0x82375C8C = {}
+0x82376A70 = {}
+0x82376AF0 = {}
+0x82376B08 = {}
+0x82376B20 = {}
+0x82376B38 = {}
+0x823786A0 = {}
+0x8237E794 = {}
+0x8237EFB8 = {}
+0x82386880 = {}
+0x82388820 = {}
+0x82388840 = {}
+0x82388A30 = {}
+0x82389EE0 = {}
+0x82389F10 = {}
+0x8238F0E8 = {}
+0x824628D8 = {}

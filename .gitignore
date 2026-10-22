@@ -1,0 +1,54 @@
+# ---- GAME DATA: NEVER in this repository --------------------------------------------
+# (the game files live OUTSIDE the repo, in ../rrxx_data/; these rules are a safety net)
+*.xex
+*.iso
+*.xiso
+*.god
+*.stfs
+*.pe
+*.pac
+*.xwb
+*.wmv
+*.xmv
+*.xma
+*.xpr
+*.xdb
+rrxx_data/
+game_data/
+extraido/
+xex_decrypted/
+
+# ---- Code generated from the executable (never share it) -----------------------------
+generated/
+guest_cache/
+shaderdump/
+*.dxbc
+*.dxil
+*.spv
+
+# ---- Build output, logs, dumps and captures ------------------------------------------
+build/
+out/
+logs/
+crash_dumps/
+*.dmp
+*.log
+*.png
+!resources/rrxx-icono/rrxx_icon_256.png
+*.exe
+*.dll
+*.pdb
+*.lib
+*.obj
+
+# ---- Created by setup.bat for each user ------------------------------------------------
+jugar.bat
+*.lnk
+
+# ---- Editors / misc ------------------------------------------------------------------
+.vs/
+.vscode/
+.idea/
+*.user
+CMakeUserPresets.json
+__pycache__/

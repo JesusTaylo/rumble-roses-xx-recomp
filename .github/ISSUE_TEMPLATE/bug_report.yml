@@ -1,0 +1,88 @@
+name: Bug report / Reporte de bug
+description: Something crashes, looks wrong or does not start. / Algo falla, se ve mal o no arranca.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing! This project only has one tested PC so far, so reports from **other GPUs and drivers** are very valuable.
+        **Never attach game files** (XEX, textures, audio, `generated/` code, shader dumps, ISO). Logs from `tools/triage.py` / `logs/ultimo_crash.txt` are fine.
+        Gracias por probar. Los reportes con **otras GPUs y drivers** son muy utiles. **Nunca adjuntes archivos del juego.**
+  - type: input
+    id: gpu
+    attributes:
+      label: GPU (exact model) / GPU (modelo exacto)
+      placeholder: "Intel UHD Graphics 630 / NVIDIA GeForce RTX 3060 / AMD Radeon RX 6600"
+    validations:
+      required: true
+  - type: input
+    id: driver
+    attributes:
+      label: GPU driver version / Version del driver
+      description: Device Manager > Display adapters > Properties > Driver. / Administrador de dispositivos > Adaptadores de pantalla > Propiedades > Controlador.
+      placeholder: "31.0.101.5186"
+    validations:
+      required: true
+  - type: textarea
+    id: system
+    attributes:
+      label: System / Sistema
+      description: Windows version, CPU, RAM, laptop or desktop, other GPUs (hybrid graphics?). / Version de Windows, CPU, RAM, portatil o escritorio, otras GPUs.
+      placeholder: "Windows 11 23H2, Ryzen 5 5600H, 16 GB RAM, laptop with iGPU + dGPU"
+    validations:
+      required: true
+  - type: dropdown
+    id: type
+    attributes:
+      label: What happened? / Que paso?
+      options:
+        - Crash / device removed (TDR)
+        - Does not start / black screen
+        - Graphical glitch
+        - Audio problem
+        - Controller / input problem
+        - Performance (slow / stutter)
+        - Build or setup.bat failure
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce / Pasos para reproducir
+      description: Where in the game, which character/mode/menu, how long since launch, is it always or random. / En que parte del juego, personaje/modo/menu, cuanto tiempo desde el inicio, siempre o aleatorio.
+      placeholder: |
+        1. Launch with jugar.bat
+        2. Story mode > ...
+        3. Crash after about 3 minutes
+    validations:
+      required: true
+  - type: textarea
+    id: crash
+    attributes:
+      label: Output of logs/ultimo_crash.txt
+      description: |
+        After a crash, `jugar.bat` writes a summary to `logs/ultimo_crash.txt`. Paste it here.
+        You can regenerate it with `python -I tools\triage.py logs\run_<date>.log`.
+        If there was no crash, paste the last ~40 lines of the newest `logs\run_*.log`.
+      render: text
+    validations:
+      required: false
+  - type: textarea
+    id: config
+    attributes:
+      label: Changes to config/rrxx.toml or command-line options / Cambios en la config
+      description: Leave empty if you did not change anything. / Dejalo vacio si no cambiaste nada.
+      render: toml
+    validations:
+      required: false
+  - type: checkboxes
+    id: legal
+    attributes:
+      label: Checklist
+      options:
+        - label: I did not attach any game file or generated code. / No adjunte archivos del juego ni codigo generado.
+          required: true
+        - label: I built with setup.bat or the README steps, unmodified. / Compile con setup.bat o los pasos del README, sin modificar.
+          required: false

@@ -1,0 +1,55 @@
+diff --git a/src/graphics/command_processor.cpp b/src/graphics/command_processor.cpp
+index a744375..fef8dac 100644
+--- a/src/graphics/command_processor.cpp
++++ b/src/graphics/command_processor.cpp
+@@ -10,6 +10,7 @@
+  */
+ 
+ #include <algorithm>
++#include <chrono>
+ #include <cinttypes>
+ #include <cmath>
+ #include <cstring>
+@@ -37,6 +38,10 @@
+ 
+ REXCVAR_DEFINE_BOOL(vsync, true, "GPU", "Enable vertical sync");
+ 
++REXCVAR_DEFINE_INT32(gpu_wait_timeout_ms, 0, "GPU",
++                     "Diagnostic: give up on a PM4 WAIT_REG_MEM that never completes after this "
++                     "many milliseconds (0 = wait forever)");
++
+ REXCVAR_DEFINE_BOOL(clear_memory_page_state, true, "GPU",
+                     "Refresh page-valid state from GPU-written memory at frame end. "
+                     "Disable for minor CPU overhead reduction, but may break memory coherency.")
+@@ -990,6 +995,7 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reade
+   bool is_memory = (wait_info & 0x10) != 0;
+ 
+   bool matched = false;
++  const auto wait_start = std::chrono::steady_clock::now();
+   do {
+     uint32_t value = 0;
+     if (is_memory) {
+@@ -1030,6 +1036,23 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reade
+         break;
+     }
+     if (!matched) {
++      // Log each distinct stuck wait once; this is the usual symptom of a GPU/CPU sync mismatch.
++      static uint32_t last_logged_addr = 0xFFFFFFFF;
++      if (poll_reg_addr != last_logged_addr) {
++        last_logged_addr = poll_reg_addr;
++        REXGPU_WARN(
++            "WAIT_REG_MEM not satisfied: {} addr={:08X} func={} ref={:08X} mask={:08X} value={:08X} "
++            "wait={:08X}",
++            is_memory ? "mem" : "reg", poll_reg_addr, wait_info & 0x7, ref, mask, value, wait);
++      }
++      // Diagnostic escape hatch: give up on a wait that never completes (0 = wait forever).
++      const int32_t timeout_ms = REXCVAR_GET(gpu_wait_timeout_ms);
++      if (timeout_ms > 0 &&
++          std::chrono::steady_clock::now() - wait_start > std::chrono::milliseconds(timeout_ms)) {
++        REXGPU_WARN("WAIT_REG_MEM timed out after {} ms ({} addr={:08X}); continuing", timeout_ms,
++                    is_memory ? "mem" : "reg", poll_reg_addr);
++        return true;
++      }
+       // Wait.
+       if (wait >= 0x100) {
+         PrepareForWait();

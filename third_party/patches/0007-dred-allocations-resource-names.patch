@@ -1,0 +1,223 @@
+diff --git a/include/rex/ui/d3d12/d3d12_util.h b/include/rex/ui/d3d12/d3d12_util.h
+index 364690d..bcdfc85 100644
+--- a/include/rex/ui/d3d12/d3d12_util.h
++++ b/include/rex/ui/d3d12/d3d12_util.h
+@@ -58,6 +58,11 @@ constexpr DXGI_FORMAT GetUintPow2DXGIFormat(uint32_t element_size_bytes_log2) {
+   }
+ }
+ 
++// Diagnostico de page faults (DRED): da nombre al objeto (visible en la salida de DRED) y, si es un
++// buffer de >= 256 KB (o log_always), registra nombre, GPU VA inicial y tamano. Un nombre repetido
++// recibe el sufijo "#N" para distinguir instancias.
++void NameAndLog(ID3D12Object* object, const char* name, bool log_always = false);
++
+ inline void FillBufferResourceDesc(D3D12_RESOURCE_DESC& desc, UINT64 size,
+                                    D3D12_RESOURCE_FLAGS flags) {
+   desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+diff --git a/src/graphics/d3d12/command_processor.cpp b/src/graphics/d3d12/command_processor.cpp
+index 772a480..4c5fc5f 100644
+--- a/src/graphics/d3d12/command_processor.cpp
++++ b/src/graphics/d3d12/command_processor.cpp
+@@ -752,6 +752,7 @@ ID3D12Resource* D3D12CommandProcessor::RequestScratchGPUBuffer(uint32_t size,
+     REXGPU_ERROR("Failed to create a {} MB scratch GPU buffer", size >> 20);
+     return nullptr;
+   }
++  ui::d3d12::util::NameAndLog(buffer, "scratch_buffer", true);
+   if (scratch_buffer_ != nullptr) {
+     resources_for_deletion_.emplace_back(submission_current_, scratch_buffer_);
+   }
+@@ -1227,6 +1228,7 @@ bool D3D12CommandProcessor::SetupContext() {
+     REXGPU_ERROR("Failed to create the gamma ramp buffer");
+     return false;
+   }
++  ui::d3d12::util::NameAndLog(gamma_ramp_buffer_.Get(), "gamma_ramp_buffer", true);
+   // The upload buffer is frame-buffered.
+   gamma_ramp_buffer_desc.Width *= kQueueFrames;
+   if (FAILED(device->CreateCommittedResource(&ui::d3d12::util::kHeapPropertiesUpload,
+@@ -1236,6 +1238,7 @@ bool D3D12CommandProcessor::SetupContext() {
+     REXGPU_ERROR("Failed to create the gamma ramp upload buffer");
+     return false;
+   }
++  ui::d3d12::util::NameAndLog(gamma_ramp_upload_buffer_.Get(), "gamma_ramp_upload_buffer", true);
+   if (FAILED(gamma_ramp_upload_buffer_->Map(
+           0, nullptr, reinterpret_cast<void**>(&gamma_ramp_upload_buffer_mapping_)))) {
+     REXGPU_ERROR("Failed to map the gamma ramp upload buffer");
+@@ -2052,6 +2055,8 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbu
+               REXGPU_ERROR("Failed to create the FXAA input texture");
+               swap_post_effect = SwapPostEffect::kNone;
+               use_fxaa = false;
++            } else {
++              ui::d3d12::util::NameAndLog(fxaa_source_texture_.Get(), "fxaa_source_texture", true);
+             }
+           }
+         }
+@@ -3037,6 +3042,7 @@ bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
+                      downscale_buffer_size >> 20);
+         return true;
+       }
++      ui::d3d12::util::NameAndLog(buffer, "resolve_downscale_buffer", true);
+       if (resolve_downscale_buffer_) {
+         resources_for_deletion_.emplace_back(GetCurrentSubmission(),
+                                              resolve_downscale_buffer_.Detach());
+@@ -3313,6 +3319,29 @@ void D3D12CommandProcessor::LogDeviceRemovalDiagnostics(ID3D12Device* device, HR
+   if (SUCCEEDED(dred->GetPageFaultAllocationOutput(&page_fault)) && page_fault.PageFaultVA != 0) {
+     REXGPU_ERROR("DRED page fault at VA 0x{:016X}", page_fault.PageFaultVA);
+   }
++
++  // Asignaciones existentes y liberadas recientemente que cubren la VA del fallo (con nombres).
++  Microsoft::WRL::ComPtr<ID3D12DeviceRemovedExtendedData1> dred1;
++  if (SUCCEEDED(device->QueryInterface(IID_PPV_ARGS(&dred1)))) {
++    D3D12_DRED_PAGE_FAULT_OUTPUT1 pf1 = {};
++    if (SUCCEEDED(dred1->GetPageFaultAllocationOutput1(&pf1))) {
++      auto dump = [](const char* kind, const D3D12_DRED_ALLOCATION_NODE1* node) {
++        uint32_t n = 0;
++        for (; node && n < 16; node = node->pNext, ++n) {
++          REXGPU_ERROR("DRED {} allocation: name='{}' type={}", kind,
++                       node->ObjectNameA ? node->ObjectNameA : "(sin nombre)",
++                       static_cast<int>(node->AllocationType));
++        }
++        if (n == 0) {
++          REXGPU_ERROR("DRED {} allocations: ninguna cubre la VA", kind);
++        }
++      };
++      REXGPU_ERROR("DRED page fault (OUTPUT1) VA 0x{:016X}", pf1.PageFaultVA);
++      dump("EXISTING", pf1.pHeadExistingAllocationNode);
++      dump("RECENTLY FREED", pf1.pHeadRecentFreedAllocationNode);
++    }
++  }
++  rex::FlushLogging();
+ }
+ 
+ bool D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
+diff --git a/src/graphics/d3d12/primitive_processor.cpp b/src/graphics/d3d12/primitive_processor.cpp
+index 500924e..e75f7c3 100644
+--- a/src/graphics/d3d12/primitive_processor.cpp
++++ b/src/graphics/d3d12/primitive_processor.cpp
+@@ -103,6 +103,7 @@ bool D3D12PrimitiveProcessor::InitializeBuiltinIndexBuffer(
+         size_bytes);
+     return false;
+   }
++  ui::d3d12::util::NameAndLog(draw_resource.Get(), "builtin_index_buffer");
+   Microsoft::WRL::ComPtr<ID3D12Resource> upload_resource;
+   if (FAILED(device->CreateCommittedResource(&ui::d3d12::util::kHeapPropertiesUpload,
+                                              provider.GetHeapFlagCreateNotZeroed(), &resource_desc,
+@@ -114,6 +115,7 @@ bool D3D12PrimitiveProcessor::InitializeBuiltinIndexBuffer(
+         size_bytes);
+     return false;
+   }
++  ui::d3d12::util::NameAndLog(upload_resource.Get(), "builtin_index_upload");
+ 
+   D3D12_RANGE upload_read_range = {};
+   void* mapping;
+diff --git a/src/graphics/d3d12/render_target_cache.cpp b/src/graphics/d3d12/render_target_cache.cpp
+index dd321a5..a5e2baa 100644
+--- a/src/graphics/d3d12/render_target_cache.cpp
++++ b/src/graphics/d3d12/render_target_cache.cpp
+@@ -222,6 +222,7 @@ bool D3D12RenderTargetCache::Initialize() {
+     return false;
+   }
+   edram_buffer_->SetName(L"EDRAM Buffer");
++  ui::d3d12::util::NameAndLog(edram_buffer_, "edram_buffer", true);
+   edram_buffer_modification_status_ = EdramBufferModificationStatus::kUnmodified;
+ 
+   // Create non-shader-visible descriptors of the EDRAM buffer for copying.
+diff --git a/src/graphics/d3d12/shared_memory.cpp b/src/graphics/d3d12/shared_memory.cpp
+index a5c97a0..f2def1f 100644
+--- a/src/graphics/d3d12/shared_memory.cpp
++++ b/src/graphics/d3d12/shared_memory.cpp
+@@ -78,6 +78,7 @@ bool D3D12SharedMemory::Initialize() {
+       return false;
+     }
+   }
++  ui::d3d12::util::NameAndLog(buffer_, "shared_memory", true);
+   buffer_gpu_address_ = buffer_->GetGPUVirtualAddress();
+   buffer_uav_writes_commit_needed_ = false;
+ 
+@@ -283,6 +284,7 @@ bool D3D12SharedMemory::AllocateSparseHostGpuMemoryRange(uint32_t offset_allocat
+     return false;
+   }
+   buffer_tiled_heaps_.push_back(heap);
++  ui::d3d12::util::NameAndLog(heap, "shared_memory_tile_heap");
+ 
+   D3D12_TILED_RESOURCE_COORDINATE region_start_coordinates;
+   region_start_coordinates.X = offset_bytes / D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES;
+diff --git a/src/graphics/d3d12/texture_cache.cpp b/src/graphics/d3d12/texture_cache.cpp
+index 2be0e8e..a5f42f9 100644
+--- a/src/graphics/d3d12/texture_cache.cpp
++++ b/src/graphics/d3d12/texture_cache.cpp
+@@ -1169,6 +1169,7 @@ bool D3D12TextureCache::EnsureScaledResolveMemoryCommitted(uint32_t start_unscal
+           "resolution scaling");
+       return false;
+     }
++    ui::d3d12::util::NameAndLog(scaled_resolve_buffer_resource, "scaled_resolve_2gb", true);
+     scaled_resolve_2gb_buffers_[i] =
+         std::unique_ptr<ScaledResolveVirtualBuffer>(new ScaledResolveVirtualBuffer(
+             scaled_resolve_buffer_resource, kScaledResolveVirtualBufferInitialState));
+@@ -1554,6 +1555,7 @@ std::unique_ptr<TextureCache::Texture> D3D12TextureCache::CreateTexture(TextureK
+                                              resource_state, nullptr, IID_PPV_ARGS(&resource)))) {
+     return nullptr;
+   }
++  ui::d3d12::util::NameAndLog(resource.Get(), "guest_texture");
+   return std::unique_ptr<Texture>(new D3D12Texture(*this, key, resource.Get(), resource_state));
+ }
+ 
+diff --git a/src/ui/d3d12/d3d12_upload_buffer_pool.cpp b/src/ui/d3d12/d3d12_upload_buffer_pool.cpp
+index ade5dd2..ad50538 100644
+--- a/src/ui/d3d12/d3d12_upload_buffer_pool.cpp
++++ b/src/ui/d3d12/d3d12_upload_buffer_pool.cpp
+@@ -80,6 +80,7 @@ GraphicsUploadBufferPool::Page* D3D12UploadBufferPool::CreatePageImplementation(
+     REXLOG_ERROR("Failed to create a D3D upload buffer with {} bytes", page_size_);
+     return nullptr;
+   }
++  util::NameAndLog(buffer.Get(), "upload_pool_page", true);
+   D3D12_RANGE read_range;
+   read_range.Begin = 0;
+   read_range.End = 0;
+diff --git a/src/ui/d3d12/d3d12_util.cpp b/src/ui/d3d12/d3d12_util.cpp
+index 28b44a4..6f1fe77 100644
+--- a/src/ui/d3d12/d3d12_util.cpp
++++ b/src/ui/d3d12/d3d12_util.cpp
+@@ -9,6 +9,9 @@
+  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+  */
+ 
++#include <atomic>
++#include <string>
++
+ #include <rex/assert.h>
+ #include <rex/logging.h>
+ #include <rex/ui/d3d12/d3d12_util.h>
+@@ -16,6 +19,33 @@
+ namespace rex::ui::d3d12 {
+ namespace util {
+ 
++void NameAndLog(ID3D12Object* object, const char* name, bool log_always) {
++  if (!object || !name) {
++    return;
++  }
++  static std::atomic<uint32_t> counter{0};
++  std::string full = std::string(name) + "#" + std::to_string(counter.fetch_add(1));
++  object->SetName(std::wstring(full.begin(), full.end()).c_str());
++  Microsoft::WRL::ComPtr<ID3D12Resource> resource;
++  if (SUCCEEDED(object->QueryInterface(IID_PPV_ARGS(&resource)))) {
++    D3D12_RESOURCE_DESC desc = resource->GetDesc();
++    if (desc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER) {
++      if (desc.Width >= (256u << 10) || log_always) {
++        REXLOG_INFO("GPU resource {}: VA=0x{:016X} size={} bytes", full,
++                    uint64_t(resource->GetGPUVirtualAddress()) & 0x0000FFFFFFFFFFFFull, uint64_t(desc.Width));
++      }
++    } else if (log_always) {
++      REXLOG_INFO("GPU resource {}: texture {}x{}x{} fmt={}", full, uint64_t(desc.Width),
++                  desc.Height, desc.DepthOrArraySize, int(desc.Format));
++    }
++  } else {
++    Microsoft::WRL::ComPtr<ID3D12Heap> heap;
++    if (SUCCEEDED(object->QueryInterface(IID_PPV_ARGS(&heap)))) {
++      REXLOG_INFO("GPU heap {}: size={} bytes", full, uint64_t(heap->GetDesc().SizeInBytes));
++    }
++  }
++}
++
+ ID3D12RootSignature* CreateRootSignature(const D3D12Provider& provider,
+                                          const D3D12_ROOT_SIGNATURE_DESC& desc) {
+   ID3DBlob* blob;

@@ -1,0 +1,16 @@
+diff --git a/src/system/xthread.cpp b/src/system/xthread.cpp
+index 77bce25..f001d73 100644
+--- a/src/system/xthread.cpp
++++ b/src/system/xthread.cpp
+@@ -1449,6 +1449,11 @@ void XHostThread::Execute() {
+   // Let the kernel know we are starting.
+   kernel_state_->OnThreadExecute(this);
+ 
++  // Host threads can run guest code (e.g. the audio render callback). Seed the FPSCR host bits like
++  // XThread::Execute does; with csr == 0 the first enable/disableFlushMode would unmask every SSE
++  // FP exception and the next sqrt/div crashes with STATUS_FLOAT_INEXACT_RESULT (0xC000008F).
++  thread_state_->context()->fpscr.InitHost();
++
+   int ret = host_fn_();
+ 
+   // Exit.

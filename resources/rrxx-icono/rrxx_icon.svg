@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#000000" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="chrome" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F4F6F8"/>
+      <stop offset="0.35" stop-color="#9AA2AB"/>
+      <stop offset="0.55" stop-color="#E3E7EB"/>
+      <stop offset="1" stop-color="#4E555D"/>
+    </linearGradient>
+    <linearGradient id="bgBlue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1E3FA8"/>
+      <stop offset="1" stop-color="#0A1446"/>
+    </linearGradient>
+    <linearGradient id="bgRed" x1="1" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#5C0718"/>
+      <stop offset="1" stop-color="#A3122F"/>
+    </linearGradient>
+    <radialGradient id="bg" cx="50%" cy="38%" r="75%">
+      <stop offset="0" stop-color="#5A1328"/>
+      <stop offset="0.6" stop-color="#2E0A17"/>
+      <stop offset="1" stop-color="#16050B"/>
+    </radialGradient>
+    <linearGradient id="petalBack" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#C0163F"/>
+      <stop offset="1" stop-color="#7A0B26"/>
+    </linearGradient>
+    <linearGradient id="petalFront" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FF5A7E"/>
+      <stop offset="1" stop-color="#B8123C"/>
+    </linearGradient>
+    <linearGradient id="petalMid" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FF4A72"/>
+      <stop offset="1" stop-color="#9E0E33"/>
+    </linearGradient>
+    <linearGradient id="steel" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#6E7680"/>
+      <stop offset="0.45" stop-color="#D5DBE1"/>
+      <stop offset="1" stop-color="#5B626B"/>
+    </linearGradient>
+    <linearGradient id="leaf" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4FA46B"/>
+      <stop offset="1" stop-color="#1F5A36"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Fondo -->
+  <clipPath id="clip"><rect x="14" y="14" width="228" height="228" rx="46"/></clipPath>
+  <rect x="6" y="6" width="244" height="244" rx="54" fill="url(#chrome)"/>
+  <g clip-path="url(#clip)">
+    <rect x="0" y="0" width="256" height="256" fill="url(#bgRed)"/>
+    <path d="M0 0 H256 L0 256 Z" fill="url(#bgBlue)"/>
+    <path d="M256 0 L0 256" stroke="#FFFFFF" stroke-opacity="0.18" stroke-width="4"/>
+  </g>
+
+  <!-- Postes del ring -->
+  <rect x="26" y="128" width="14" height="104" rx="6" fill="url(#steel)"/>
+  <rect x="216" y="128" width="14" height="104" rx="6" fill="url(#steel)"/>
+
+  <!-- Cuerdas -->
+  <g fill="none" stroke-linecap="round">
+    <path d="M33 150 Q128 162 223 150" stroke="#F4E9EC" stroke-width="9"/>
+    <path d="M33 180 Q128 192 223 180" stroke="#E8395F" stroke-width="9"/>
+    <path d="M33 210 Q128 222 223 210" stroke="#F4E9EC" stroke-width="9"/>
+  </g>
+
+  <!-- Tallo, sobre las cuerdas -->
+  <path d="M136 132 C150 165 168 190 196 226" fill="none" stroke="#2C6B42" stroke-width="10" stroke-linecap="round"/>
+  <!-- Hoja -->
+  <path d="M160 178 C182 160 206 164 214 172 C200 190 178 194 160 178 Z" fill="url(#leaf)"/>
+  <path d="M162 178 C180 174 196 171 210 172" fill="none" stroke="#1A4A2C" stroke-width="2"/>
+  <!-- Espina -->
+  <path d="M150 158 l-10 2 l8 6 Z" fill="#2C6B42"/>
+
+  <circle cx="128" cy="92" r="84" fill="url(#halo)"/>
+  <!-- Rosa -->
+  <g transform="translate(128 94) rotate(-12) scale(1.08)">
+    <!-- petalos traseros -->
+    <path d="M-60 6 C-70 -36 -36 -62 -6 -56 C-30 -40 -40 -18 -36 8 Z" fill="url(#petalBack)"/>
+    <path d="M60 6 C70 -36 36 -62 6 -56 C30 -40 40 -18 36 8 Z" fill="url(#petalBack)"/>
+    <path d="M-34 -48 C-16 -70 16 -70 34 -48 C16 -40 -16 -40 -34 -48 Z" fill="url(#petalBack)"/>
+    <!-- copa -->
+    <ellipse cx="0" cy="-10" rx="44" ry="40" fill="url(#petalMid)"/>
+    <!-- capullo central: petalos interiores en capas -->
+    <path d="M-26 -18 C-26 -44 26 -44 26 -18 C14 -30 -14 -30 -26 -18 Z" fill="#7E0C2A"/>
+    <path d="M-22 -14 C-20 -34 8 -40 20 -24 C6 -26 -8 -22 -22 -14 Z" fill="#D21E4A"/>
+    <path d="M-8 -22 C2 -34 22 -30 24 -14 C14 -24 2 -24 -8 -22 Z" fill="#A3102F"/>
+    <path d="M-30 -8 C-20 -26 20 -26 30 -8 C18 -14 -18 -14 -30 -8 Z" fill="#E8335C"/>
+    <!-- petalo frontal izquierdo -->
+    <path d="M-52 0 C-50 32 -22 48 0 48 C-6 34 -18 14 -40 -6 Z" fill="url(#petalFront)"/>
+    <!-- petalo frontal derecho -->
+    <path d="M52 0 C50 32 22 48 0 48 C6 34 18 14 40 -6 Z" fill="url(#petalFront)"/>
+    <!-- petalo frontal central -->
+    <path d="M-34 8 C-20 30 20 30 34 8 C24 36 -24 36 -34 8 Z" fill="#FF7896"/>
+    <!-- brillo -->
+    <path d="M-30 -30 C-26 -40 -16 -46 -6 -46" fill="none" stroke="#FFC2D0" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
+  </g>
+</svg>

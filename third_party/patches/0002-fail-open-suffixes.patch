@@ -1,0 +1,76 @@
+diff --git a/src/kernel/xboxkrnl/xboxkrnl_io.cpp b/src/kernel/xboxkrnl/xboxkrnl_io.cpp
+index 3f1a852..8850089 100644
+--- a/src/kernel/xboxkrnl/xboxkrnl_io.cpp
++++ b/src/kernel/xboxkrnl/xboxkrnl_io.cpp
+@@ -12,6 +12,10 @@
+ // Disable warnings about unused parameters for kernel functions
+ #pragma GCC diagnostic ignored "-Wunused-parameter"
+ 
++#include <cctype>
++#include <string>
++
++#include <rex/cvar.h>
+ #include <rex/filesystem/device.h>
+ #include <rex/kernel/xboxkrnl/private.h>
+ #include <rex/logging.h>
+@@ -29,9 +33,43 @@
+ #include <rex/system/xtypes.h>
+ #include <rex/thread/mutex.h>
+ 
++REXCVAR_DEFINE_STRING(fail_open_suffixes, "", "Kernel/IO",
++                      "Comma-separated, case-insensitive path suffixes (e.g. \".wmv,.xmv\") for "
++                      "which NtCreateFile/NtOpenFile fails with OBJECT_NAME_NOT_FOUND. Used by "
++                      "ports to skip optional content such as intro movies.");
++
+ namespace rex::kernel::xboxkrnl {
+ using namespace rex::system;
+ 
++// True when `path` ends with one of the comma-separated suffixes in fail_open_suffixes.
++static bool PathHasFailOpenSuffix(const std::string& path) {
++  const std::string& list = REXCVAR_GET(fail_open_suffixes);
++  if (list.empty()) {
++    return false;
++  }
++  auto lower = [](std::string s) {
++    for (auto& c : s) {
++      c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
++    }
++    return s;
++  };
++  const std::string p = lower(path);
++  size_t pos = 0;
++  while (pos <= list.size()) {
++    size_t end = list.find(',', pos);
++    if (end == std::string::npos) {
++      end = list.size();
++    }
++    const std::string suffix = lower(list.substr(pos, end - pos));
++    if (!suffix.empty() && p.size() >= suffix.size() &&
++        p.compare(p.size() - suffix.size(), suffix.size(), suffix) == 0) {
++      return true;
++    }
++    pos = end + 1;
++  }
++  return false;
++}
++
+ struct CreateOptions {
+   // https://processhacker.sourceforge.io/doc/ntioapi_8h.html
+   static const uint32_t FILE_DIRECTORY_FILE = 0x00000001;
+@@ -133,6 +171,16 @@ u32 NtCreateFile_entry(mapped_u32 handle_out, u32 desired_access,
+     return X_STATUS_OBJECT_NAME_INVALID;
+   }
+ 
++  if (PathHasFailOpenSuffix(target_path)) {
++    REXKRNL_IMPORT_FAIL("NtCreateFile", "path='{}' blocked by fail_open_suffixes", target_path);
++    *handle_out = X_INVALID_HANDLE_VALUE;
++    if (io_status_block) {
++      io_status_block->status = X_STATUS_OBJECT_NAME_NOT_FOUND;
++      io_status_block->information = 0;
++    }
++    return X_STATUS_OBJECT_NAME_NOT_FOUND;
++  }
++
+   if (object_attrs->root_directory != 0xFFFFFFFD &&  // ObDosDevices
+       object_attrs->root_directory != 0) {
+     auto root_file = REX_KERNEL_OBJECTS()->LookupObject<XFile>(object_attrs->root_directory);

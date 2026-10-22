@@ -1,0 +1,41 @@
+diff --git a/src/graphics/graphics_system.cpp b/src/graphics/graphics_system.cpp
+index 8f2fcb0..407ec39 100644
+--- a/src/graphics/graphics_system.cpp
++++ b/src/graphics/graphics_system.cpp
+@@ -217,6 +217,8 @@ void GraphicsSystem::OnHostGpuLossFromAnyThread([[maybe_unused]] bool is_respons
+   if (host_gpu_loss_reported_.test_and_set(std::memory_order_relaxed)) {
+     return;
+   }
++  REXGPU_ERROR("Graphics device lost (is_responsible={})", is_responsible);
++  rex::FlushLogging();
+   rex::FatalError("Graphics device lost (probably due to an internal error)");
+ }
+ 
+diff --git a/src/ui/d3d12/d3d12_provider.cpp b/src/ui/d3d12/d3d12_provider.cpp
+index bf8252b..30fae2b 100644
+--- a/src/ui/d3d12/d3d12_provider.cpp
++++ b/src/ui/d3d12/d3d12_provider.cpp
+@@ -227,7 +227,10 @@ bool D3D12Provider::Initialize() {
+       REXLOG_WARN("Failed to enable the Direct3D 12 debug layer");
+       debug = false;
+     }
++  }
+ 
++  // DRED se activa siempre (independiente de la capa de debug, que puede no estar instalada).
++  {
+     // Enable DRED (Device Removed Extended Data) for diagnosing GPU crashes.
+     {
+       Microsoft::WRL::ComPtr<ID3D12DeviceRemovedExtendedDataSettings> dred_settings;
+diff --git a/src/ui/presenter.cpp b/src/ui/presenter.cpp
+index 7360ed9..5ff8afd 100644
+--- a/src/ui/presenter.cpp
++++ b/src/ui/presenter.cpp
+@@ -279,6 +279,8 @@ namespace ui {
+ 
+ void Presenter::FatalErrorHostGpuLossCallback([[maybe_unused]] bool is_responsible,
+                                               [[maybe_unused]] bool statically_from_ui_thread) {
++  REXGPU_ERROR("Graphics device lost (is_responsible={})", is_responsible);
++  rex::FlushLogging();
+   rex::FatalError("Graphics device lost (probably due to an internal error)");
+ }
+ 

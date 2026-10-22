@@ -1,0 +1,7 @@
+// Recursos de Windows de rrxx.exe: icono del ejecutable y de la ventana.
+// ID 1 = icono de grupo (Explorador, clase de ventana de SDL y WM_SETICON en rrxx_app.h).
+
+#include <winuser.h>
+
+1 ICON "rrxx-icono/rrxx.ico"
+
