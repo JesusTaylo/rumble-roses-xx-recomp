@@ -1,6 +1,5 @@
 <p align="center">
-  <img src="resources/branding/rumble_roses_xx_logo.png" alt="Rumble Roses XX logo" width="420"><br>
-  <img src="resources/rrxx-icono/rrxx_icon_256.png" alt="rrxx icon" width="96">
+  <img src="resources/branding/rumble_roses_xx_logo.png" alt="Rumble Roses XX logo" width="420">
 </p>
 
 # Rumble Roses XX — PC recomp (unofficial)
