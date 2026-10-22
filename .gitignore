@@ -53,3 +53,7 @@ jugar.bat
 *.user
 CMakeUserPresets.json
 __pycache__/
+
+# ---- Launcher binary: published in GitHub Releases, not in the repo ----
+launcher/out/
+rrxx-launcher.exe

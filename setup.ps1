@@ -15,7 +15,8 @@
 param(
     [Parameter(Position = 0)][string]$Iso,
     [switch]$Yes,            # answer "yes" to every confirmation (unattended)
-    [switch]$NoShortcut
+    [switch]$NoShortcut,
+    [switch]$NoLaunch        # do not offer to start the game at the end (used by rrxx-launcher.exe)
 )
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
@@ -241,7 +242,7 @@ try {
     Write-Host (T "  ALL DONE. Double-click jugar.bat (or the shortcut) to play." "  LISTO. Haz doble clic en jugar.bat (o en el acceso directo) para jugar.") -ForegroundColor Green
     Write-Host (T "  Settings: config\rrxx.toml   Problems: see README (Reporting bugs)." "  Opciones: config\rrxx.toml   Problemas: ver README (Reporting bugs).") -ForegroundColor Green
     Write-Host "==========================================================" -ForegroundColor Green
-    if (Ask "Launch the game now?" "Iniciar el juego ahora?" $false) { Start-Process "$root\jugar.bat" }
+    if (-not $NoLaunch -and (Ask "Launch the game now?" "Iniciar el juego ahora?" $false)) { Start-Process "$root\jugar.bat" }
     $exit = 0
 } catch {
     Write-Host ""

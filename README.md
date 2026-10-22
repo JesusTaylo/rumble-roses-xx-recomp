@@ -24,11 +24,13 @@ not an emulator that runs the console image: you recompile **your own** copy of 
 ## Contents
 - [Requirements and tested hardware](#requirements-and-tested-hardware)
 - [Getting the game files from your own copy](#getting-the-game-files-from-your-own-copy)
-- [Easy install (setup.bat)](#easy-install-setupbat)
+- [Install with the launcher (recommended)](#install-with-the-launcher-recommended)
+- [Alternative: setup.bat](#alternative-setupbat)
 - [Manual build (advanced)](#manual-build-advanced)
 - [Running and configuration](#running-and-configuration)
 - [Known issues](#known-issues)
 - [Reporting bugs](#reporting-bugs)
+- [FAQ](#faq)
 - [How it works / repository layout](#how-it-works--repository-layout)
 - [Credits](#credits) · [License](#license) · [Español](#español)
 
@@ -38,9 +40,9 @@ not an emulator that runs the console image: you recompile **your own** copy of 
 | OS | Windows 10/11, 64-bit (Linux / Steam Deck is a future goal, not available yet) |
 | GPU | Direct3D 12 capable. **Tested only on an integrated Intel UHD GPU (Windows 11).** NVIDIA / AMD: untested |
 | Disk | ~25 GB free (ISO extraction ≈ 4 GB, SDK + game build ≈ 15 GB) |
-| Time | 30–90 min the first time (mostly compiling; 20+ minutes for the SDK alone) |
+| Time | First install: ~20 min on our test PC (build tools already installed), 30–90 min on a typical fresh PC (mostly compiling; the SDK alone is ~13+ min). Afterwards, launching is instant |
 | Input | An Xbox-compatible gamepad is recommended (tested). Local multiplayer is a goal but untested |
-| Tools | Visual Studio 2022 Build Tools (C++ workload), LLVM/clang, CMake, Ninja, Git, Python 3 — `setup.bat` installs what is missing (with your confirmation) |
+| Tools | Visual Studio 2022 Build Tools (C++ workload), LLVM/clang, CMake, Ninja, Git, Python 3 — the launcher / `setup.bat` installs what is missing (with your confirmation) |
 | Game | **Your own copy** of Rumble Roses XX (Xbox 360 retail disc → ISO) |
 
 Online play (Xbox Live) is out of scope.
@@ -50,21 +52,45 @@ The recompiler needs the files of the original disc, extracted from **your own**
 
 1. Make a disc image (`.iso`) of **your own Rumble Roses XX Xbox 360 disc** with a compatible DVD drive
    or a console you own, using the dumping method of your choice for discs you own.
-2. Keep the `.iso` somewhere safe on your PC. `setup.bat` will ask for its path.
-3. `setup.bat` extracts it next to this folder into `..\rrxx_data\extraido\` (so it is never inside the
+2. Keep the `.iso` somewhere safe on your PC. The launcher (or `setup.bat`) will ask for it.
+3. The setup extracts it next to this folder into `..\rrxx_data\extraido\` (so it is never inside the
    repository) with [extract-xiso](https://github.com/XboxDev/extract-xiso). The SDK then reads
    `default.xex` directly and decrypts/decompresses it itself — there is **no separate decryption step** and no
    key is needed from you.
 
 This repository does not link to, host, or recommend any place to obtain game files.
 
-## Easy install (setup.bat)
-1. Clone this repository to a **short path** without spaces, outside protected folders:
+## Install with the launcher (recommended)
+`rrxx-launcher.exe` is a small graphical front-end for the setup (a ~90 KB .NET Framework program; the framework is
+already part of Windows 10/11, nothing to install). It contains **no game files and no recompiled code**: it only runs
+`setup.ps1` and then `jugar.bat` from the folder it sits in, and its source is in [`launcher/`](launcher/).
+
+1. Get the project folder at a **short path** without spaces, outside protected folders:
    ```
    git clone https://github.com/JesusTaylo/rumble-roses-xx-recomp.git C:\rrxx\rrxx-recomp
    ```
-   (no `--recursive` needed: the setup script fetches the SDK). If Windows Defender's *Controlled folder access* is on, avoid
-   `Documents`/`Desktop`, it blocks compiler output there.
+   (no `--recursive` needed: the setup fetches the SDK by itself). If Windows Defender's *Controlled folder access*
+   is on, avoid `Documents`/`Desktop`, it blocks compiler output there.
+2. Download `rrxx-launcher.exe` from the [Releases](https://github.com/JesusTaylo/rumble-roses-xx-recomp/releases)
+   page and put it **inside that folder**, next to `setup.ps1`. (Windows SmartScreen may warn about an unsigned
+   app: *More info → Run anyway*. You can also build it yourself with `launcher\build.bat`.)
+3. Run it, press **Browse...**, pick the `.iso` of **your own** copy of the game, then **Install / Build**.
+   The bar shows the current step (1–6 of `setup.ps1`) and the box below shows the live output. Windows may ask for
+   administrator permission when it installs build tools (with `winget`).
+4. When it finishes, the **Play** button appears. The next time, the launcher opens straight on **Play**
+   (use *Repair / re-run setup* if something broke).
+
+If something fails, the launcher says which step failed and where the logs are (`logs\setup.log`, `build_sdk.log`,
+`build.log`, `codegen.log`; the *Open logs folder* button opens that folder). Re-running is safe: finished steps are skipped.
+
+**First installation time:** about **20 minutes** on our test PC with the build tools already installed
+(ISO extraction ≈1 min, SDK ≈13 min, recompile + game build ≈8 min). On a fresh Windows add the download and
+installation of Visual Studio Build Tools, LLVM, etc. (≈10–30 min depending on your connection), so **plan for
+30–90 minutes**. It is a one-time cost; later launches are immediate.
+
+## Alternative: setup.bat
+The same setup without the graphical window.
+1. Clone as above (`git clone ... C:\rrxx\rrxx-recomp`; no `--recursive` needed).
 2. Double-click **`setup.bat`** (or run `setup.bat "D:\path\to\your-game.iso"`; you can also drag the ISO onto it).
 3. Follow the prompts. It will, in order:
    1. ask for your ISO (or accept it as an argument);
@@ -84,7 +110,7 @@ winget missing → update *App Installer* from the Microsoft Store; "tool instal
 window and run `setup.bat` again; build errors under `Documents` → move the repo to e.g. `C:\rrxx\`.
 
 ## Manual build (advanced)
-Equivalent to what `setup.bat` does, step by step (PowerShell, from the repository folder, after the `git clone` above):
+Equivalent to what the launcher / `setup.bat` does, step by step (PowerShell, from the repository folder, after the `git clone` above):
 
 ```powershell
 # 0. Tools (once): Git, VS 2022 Build Tools with the "Desktop development with C++" workload,
@@ -167,9 +193,35 @@ assets you cannot share.** `logs\setup.log`, `logs\run_*.log`, `ultimo_crash.txt
 FPS data (`gpu_log_fps`) in the log is very welcome for performance reports. For a repeatable stability test,
 `tools\timing_test.py` runs N unattended 3-minute sessions and writes a CSV.
 
+## FAQ
+**Why don't you distribute the game's `.exe`?**
+Because it would contain Konami's game. The recompiled program is not an original work: it is the game's PowerPC
+code translated, instruction by instruction, to C++ and compiled. Distributing it would be distributing a copy of
+Konami's copyrighted code in another form, so **this project never ships it** (nor the `.xex`, textures, audio,
+models, text or the generated C++). What *is* published is only original work: recompiler configuration,
+runtime patches, setup scripts and this launcher.
+
+**Then how do I get the game?**
+You generate it on your own PC from **your own copy**: the launcher/setup extracts your ISO, the SDK recompiles
+`default.xex` locally into `generated\` and builds `rrxx.exe` there. Everything stays on your machine and nothing is
+uploaded. (That is also why the first install takes a while.)
+
+**Is `rrxx-launcher.exe` safe? Does it include the game?**
+It has no game content at all. It is a ~90 KB program built from [`launcher/Launcher.cs`](launcher/Launcher.cs); you can read
+the source and rebuild it with `launcher\build.bat`. It only starts `powershell setup.ps1` and `jugar.bat`. It is unsigned,
+so SmartScreen may warn the first time.
+
+**Can I use a copy found on the internet?** We cannot help with, link to or recommend that. Use a dump of a disc you own.
+
+**It says the path has spaces / is under Documents.** Move the folder to something like `C:\rrxx\rrxx-recomp`.
+
+**The setup failed.** Open `logs\setup.log` (the launcher's *Open logs folder* button) and run it again: finished steps are skipped.
+If it keeps failing, open an issue and attach `logs\setup.log` (it contains no game data).
+
 ## How it works / repository layout
 ```
 setup.bat / setup.ps1   guided install
+launcher/               source of rrxx-launcher.exe (GUI front-end; the exe goes in GitHub Releases, not in the repo)
 config/overrides.toml   recompiler overrides: function entry points the static analysis missed (addresses only)
 config/rrxx.toml        default runtime options
 rrxx_manifest.toml      ReXGlue project file (paths are relative to this repo)
@@ -209,7 +261,9 @@ reportes con **otras GPUs y drivers**.
 
 **No incluye ningún archivo del juego**: necesitas tu propia copia legal. Sin afiliación con Konami ni Yuke's.
 
-**Instalación fácil:** clona el repo en una ruta corta (por ejemplo `C:\rrxx\rrxx-recomp`, fuera de `Documentos`)
+**Instalación con el launcher (recomendada):** clona el repo en una ruta corta (p. ej. `C:\rrxx\rrxx-recomp`), descarga `rrxx-launcher.exe` desde *Releases*, ponlo dentro de esa carpeta, ábrelo, elige la `.iso` de *tu* copia y pulsa *Install / Build*. Muestra el paso actual y, al terminar, el botón **Play**; la próxima vez abre directo en Play. No contiene nada del juego (código en `launcher/`). **Primera instalación:** ~20 min en nuestro PC de pruebas con las herramientas ya instaladas; **30–90 min** en un PC recién instalado.
+
+**Alternativa sin ventana:** clona el repo en una ruta corta (por ejemplo `C:\rrxx\rrxx-recomp`, fuera de `Documentos`)
 con `git clone https://github.com/JesusTaylo/rumble-roses-xx-recomp.git C:\rrxx\rrxx-recomp`, y ejecuta **`setup.bat`** (o `setup.bat "D:\ruta\tu-juego.iso"`). Pide la ISO de *tu* disco, instala con `winget`
 (preguntando antes) lo que falte, extrae la ISO a `..\rrxx_data\extraido`, compila el SDK con nuestros parches,
 recompila `default.xex` (el SDK lo descifra solo) y compila el juego. Al final crea `jugar.bat` y un acceso
@@ -227,6 +281,8 @@ fuera de alcance.
 **Reportar bugs:** abre un issue con la plantilla e incluye modelo de GPU y driver, Windows, pasos para reproducir y
 la salida de `logs\ultimo_crash.txt` (o `python -I tools\triage.py logs\run_<fecha>.log`). **No adjuntes archivos
 del juego ni código generado.**
+
+**¿Por qué no se distribuye el .exe del juego?** Porque contiene código recompilado de Konami (el código PowerPC del juego traducido a C++): distribuirlo sería distribuir una copia de su código con otra forma. Cada usuario lo genera en su PC a partir de su propia copia; el launcher solo automatiza ese proceso y no contiene nada del juego.
 
 Créditos: Konami/Yuke's (sin afiliación), ReXGlue, Xenia, el port de Banjo-Tooie de iron-jay como referencia, y
 desarrollado con ayuda de Claude Code.
