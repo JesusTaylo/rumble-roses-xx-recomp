@@ -1,5 +1,6 @@
 <p align="center">
-  <img src="resources/rrxx-icono/rrxx_icon_256.png" alt="rrxx icon" width="160">
+  <img src="resources/branding/rumble_roses_xx_logo.png" alt="Rumble Roses XX logo" width="420"><br>
+  <img src="resources/rrxx-icono/rrxx_icon_256.png" alt="rrxx icon" width="96">
 </p>
 
 # Rumble Roses XX — PC recomp (unofficial)
@@ -191,6 +192,9 @@ The docs under `docs/` (and `CLAUDE.md`) are the development log and are mostly 
   structure and workflow.
 - **[extract-xiso](https://github.com/XboxDev/extract-xiso)** — ISO extraction. **SDL3**, **FFmpeg**, **DXC**, etc. via the SDK.
 - Developed with the help of **[Claude Code](https://claude.com/claude-code)** (Anthropic) as a programming partner.
+
+## Trademarks and logo
+The *Rumble Roses XX* logo at the top of this page (`resources/branding/rumble_roses_xx_logo.png`) is a trademark and copyrighted artwork of **Konami Digital Entertainment / Yuke's**. It is shown here only to identify the game this fan project is about; it is **not** covered by this project's license, and no endorsement, affiliation or ownership is claimed. All rights to the name, logo and game belong to their owners. If you are a rights holder and want it removed, please open an issue and it will be taken down promptly.
 
 ## License
 This project's own code is licensed under the [BSD 3-Clause License](LICENSE) (Copyright (c) 2026 JesusTaylo). The SDK in `third_party/rexglue-sdk` and
