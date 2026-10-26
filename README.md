@@ -61,8 +61,8 @@ The recompiler needs the files of the original disc, extracted from **your own**
 This repository does not link to, host, or recommend any place to obtain game files.
 
 ## Install with the launcher (recommended)
-`rrxx-launcher.exe` is a small graphical front-end for the setup (a ~90 KB .NET Framework program; the framework is
-already part of Windows 10/11, nothing to install). It contains **no game files and no recompiled code**: it only runs
+`rrxx-launcher.exe` is a small graphical front-end for the setup (a ~2.7 MB .NET Framework program, mostly its background image and fonts; the framework is
+already part of Windows 10/11, nothing to install). It has a game-menu look and works with mouse, keyboard and gamepad (XInput). It contains **no game files and no recompiled code**: it only runs
 `setup.ps1` and then `jugar.bat` from the folder it sits in, and its source is in [`launcher/`](launcher/).
 
 1. Get the project folder at a **short path** without spaces, outside protected folders:
@@ -74,14 +74,19 @@ already part of Windows 10/11, nothing to install). It contains **no game files 
 2. Download `rrxx-launcher.exe` from the [Releases](https://github.com/JesusTaylo/rumble-roses-xx-recomp/releases)
    page and put it **inside that folder**, next to `setup.ps1`. (Windows SmartScreen may warn about an unsigned
    app: *More info → Run anyway*. You can also build it yourself with `launcher\build.bat`.)
-3. Run it, press **Browse...**, pick the `.iso` of **your own** copy of the game, then **Install / Build**.
-   The bar shows the current step (1–6 of `setup.ps1`) and the box below shows the live output. Windows may ask for
+3. Run it and choose **Start Game**. If the game is not installed yet, it asks for the `.iso` of **your own** copy
+   (it remembers the path) and runs the install. The bar shows the current step (1–6 of `setup.ps1`) with the live output. Windows may ask for
    administrator permission when it installs build tools (with `winget`).
-4. When it finishes, the **Play** button appears. The next time, the launcher opens straight on **Play**
-   (use *Repair / re-run setup* if something broke).
+4. When it finishes, **Start Game** launches the game. If something broke, choosing **Start Game** again re-runs the
+   setup (finished steps are skipped).
+
+Other menu entries: **Controls** (shows the keyboard-as-gamepad mapping and lets you rebind the keys; the gamepad uses the
+native Xbox layout, which the SDK does not let us remap) and **Settings** (edits `rrxx.toml`: render path RTV/ROV,
+resolution scale, fullscreen/windowed, VSync, upload-pool margin, FPS log; each option has a short description and a
+**Save** button). If you put your own `splash.png` next to the exe it replaces the built-in background.
 
 If something fails, the launcher says which step failed and where the logs are (`logs\setup.log`, `build_sdk.log`,
-`build.log`, `codegen.log`; the *Open logs folder* button opens that folder). Re-running is safe: finished steps are skipped.
+`build.log`, `codegen.log`). Re-running is safe: finished steps are skipped.
 
 **First installation time:** about **20 minutes** on our test PC with the build tools already installed
 (ISO extraction ≈1 min, SDK ≈13 min, recompile + game build ≈8 min). On a fresh Windows add the download and
@@ -207,7 +212,7 @@ You generate it on your own PC from **your own copy**: the launcher/setup extrac
 uploaded. (That is also why the first install takes a while.)
 
 **Is `rrxx-launcher.exe` safe? Does it include the game?**
-It has no game content at all. It is a ~90 KB program built from [`launcher/Launcher.cs`](launcher/Launcher.cs); you can read
+It has no game content at all. It is a ~2.7 MB program (its only non-code content is the background artwork and two OFL fonts) built from [`launcher/Launcher.cs`](launcher/Launcher.cs); you can read
 the source and rebuild it with `launcher\build.bat`. It only starts `powershell setup.ps1` and `jugar.bat`. It is unsigned,
 so SmartScreen may warn the first time.
 
@@ -242,6 +247,8 @@ The docs under `docs/` (and `CLAUDE.md`) are the development log and are mostly 
 - **[Banjo-Tooie XBLA recomp](https://github.com/iron-jay/banjo_tooie_xbla_recomp)** by iron-jay — used as the reference for project
   structure and workflow.
 - **[extract-xiso](https://github.com/XboxDev/extract-xiso)** — ISO extraction. **SDL3**, **FFmpeg**, **DXC**, etc. via the SDK.
+- **Launcher background and logo**: artwork © Konami / Yuke's, used only to identify the game; not covered by this project's license.
+- **Launcher font**: [Saira Condensed](https://fonts.google.com/specimen/Saira+Condensed) (The Saira Project Authors), SIL Open Font License 1.1 — license in [`launcher/assets/fonts/OFL.txt`](launcher/assets/fonts/OFL.txt) and embedded in the exe.
 - Developed with the help of **[Claude Code](https://claude.com/claude-code)** (Anthropic) as a programming partner.
 
 ## Trademarks and logo
@@ -261,7 +268,7 @@ reportes con **otras GPUs y drivers**.
 
 **No incluye ningún archivo del juego**: necesitas tu propia copia legal. Sin afiliación con Konami ni Yuke's.
 
-**Instalación con el launcher (recomendada):** clona el repo en una ruta corta (p. ej. `C:\rrxx\rrxx-recomp`), descarga `rrxx-launcher.exe` desde *Releases*, ponlo dentro de esa carpeta, ábrelo, elige la `.iso` de *tu* copia y pulsa *Install / Build*. Muestra el paso actual y, al terminar, el botón **Play**; la próxima vez abre directo en Play. No contiene nada del juego (código en `launcher/`). **Primera instalación:** ~20 min en nuestro PC de pruebas con las herramientas ya instaladas; **30–90 min** en un PC recién instalado.
+**Instalación con el launcher (recomendada):** clona el repo en una ruta corta (p. ej. `C:\rrxx\rrxx-recomp`), descarga `rrxx-launcher.exe` desde *Releases*, ponlo dentro de esa carpeta, ábrelo, elige la `.iso` de *tu* copia y pulsa *Install / Build*. Elige **Start Game**: si el juego no está instalado pide la ISO (recuerda la ruta) y lo instala mostrando el progreso; después lo lanza. **Controls** muestra y permite cambiar las teclas (el mando usa el mapeo nativo de Xbox, no reasignable) y **Settings** edita `rrxx.toml` con descripciones y botón de guardar. Funciona con mouse, teclado y mando. No contiene nada del juego (código en `launcher/`). **Primera instalación:** ~20 min en nuestro PC de pruebas con las herramientas ya instaladas; **30–90 min** en un PC recién instalado.
 
 **Alternativa sin ventana:** clona el repo en una ruta corta (por ejemplo `C:\rrxx\rrxx-recomp`, fuera de `Documentos`)
 con `git clone https://github.com/JesusTaylo/rumble-roses-xx-recomp.git C:\rrxx\rrxx-recomp`, y ejecuta **`setup.bat`** (o `setup.bat "D:\ruta\tu-juego.iso"`). Pide la ISO de *tu* disco, instala con `winget`
@@ -284,5 +291,5 @@ del juego ni código generado.**
 
 **¿Por qué no se distribuye el .exe del juego?** Porque contiene código recompilado de Konami (el código PowerPC del juego traducido a C++): distribuirlo sería distribuir una copia de su código con otra forma. Cada usuario lo genera en su PC a partir de su propia copia; el launcher solo automatiza ese proceso y no contiene nada del juego.
 
-Créditos: Konami/Yuke's (sin afiliación), ReXGlue, Xenia, el port de Banjo-Tooie de iron-jay como referencia, y
+Créditos: proyecto de fans sin fines de lucro; Rumble Roses XX y su arte (fondo y logo del launcher) son © Konami / Yuke's, sin afiliación; fuente Saira Condensed (SIL OFL 1.1);  ReXGlue, Xenia, el port de Banjo-Tooie de iron-jay como referencia, y
 desarrollado con ayuda de Claude Code.

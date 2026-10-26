@@ -35,6 +35,7 @@ crash_dumps/
 *.log
 *.png
 !resources/branding/rumble_roses_xx_logo.png
+!launcher/assets/splash.png
 !resources/rrxx-icono/rrxx_icon_256.png
 *.exe
 *.dll
